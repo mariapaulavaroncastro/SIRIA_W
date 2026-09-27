@@ -17,8 +17,9 @@ public class RiegoController {
     @Autowired
     private LecturaSensorRepository repository;
 
-    private String modoOperacion = "AUTOMATICO";
-    private boolean bombaEncendida = false;
+    private volatile String modoOperacion = "AUTOMATICO";
+    private volatile boolean bombaEncendida = false;
+    private volatile Boolean releEncendido;
     private final double umbralHumedadMinima = 40.0;
     private final double umbralHumedadOptima = 65.0;
 
@@ -30,13 +31,16 @@ public class RiegoController {
     @PostMapping("/telemetria")
     public Map<String, Object> recibirTelemetria(@RequestBody LecturaSensor lectura) {
         repository.save(lectura);
+        if (lectura.getReleEncendido() != null) {
+            releEncendido = lectura.getReleEncendido();
+        }
 
         if ("AUTOMATICO".equalsIgnoreCase(modoOperacion)) {
-            Double hSuelo = lectura.getHumedadSuelo();
-            if (hSuelo != null && hSuelo > 0) {
-                if (hSuelo < umbralHumedadMinima) {
+            Double humedadSuelo = lectura.getHumedadSuelo();
+            if (humedadSuelo != null) {
+                if (humedadSuelo < umbralHumedadMinima) {
                     bombaEncendida = true;
-                } else if (hSuelo >= umbralHumedadOptima) {
+                } else if (humedadSuelo >= umbralHumedadOptima) {
                     bombaEncendida = false;
                 }
             }
@@ -46,6 +50,7 @@ public class RiegoController {
         respuesta.put("status", "OK");
         respuesta.put("modo", modoOperacion);
         respuesta.put("bombaEncendida", bombaEncendida);
+        respuesta.put("releEncendido", releEncendido);
         return respuesta;
     }
 
@@ -65,6 +70,7 @@ public class RiegoController {
         Map<String, Object> estado = new HashMap<>();
         estado.put("modo", modoOperacion);
         estado.put("bombaEncendida", bombaEncendida);
+        estado.put("releEncendido", releEncendido);
         return estado;
     }
 

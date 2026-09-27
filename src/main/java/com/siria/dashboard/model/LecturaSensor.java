@@ -14,6 +14,12 @@ public class LecturaSensor {
     @Column(name = "humedad_suelo")
     private Double humedadSuelo;
 
+    @Column(name = "lectura_suelo_raw")
+    private Integer lecturaSueloRaw;
+
+    @Column(name = "rele_encendido")
+    private Boolean releEncendido;
+
     @Column(name = "temperatura")
     private Double temperatura;
 
@@ -66,6 +72,22 @@ public class LecturaSensor {
 
     public void setHumedadSuelo(Double humedadSuelo) {
         this.humedadSuelo = humedadSuelo;
+    }
+
+    public Integer getLecturaSueloRaw() {
+        return lecturaSueloRaw;
+    }
+
+    public void setLecturaSueloRaw(Integer lecturaSueloRaw) {
+        this.lecturaSueloRaw = lecturaSueloRaw;
+    }
+
+    public Boolean getReleEncendido() {
+        return releEncendido;
+    }
+
+    public void setReleEncendido(Boolean releEncendido) {
+        this.releEncendido = releEncendido;
     }
 
     public Double getTemperatura() {

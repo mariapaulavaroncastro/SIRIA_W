@@ -67,6 +67,7 @@
         .sensor-state { color: var(--muted); font-size: 11px; }
         .metric { margin: 17px 0 8px; font: 600 28px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
         .metric small { color: var(--muted); font-size: 13px; }
+        .metric-detail { margin: -2px 0 8px; color: var(--muted); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
         .chart-wrap { position: relative; height: 120px; margin-top: 12px; }
         .chart-empty { display: grid; height: 120px; place-items: center; margin-top: 12px; border: 1px dashed rgba(119, 200, 132, .22); color: var(--muted); font-size: 12px; text-align: center; }
         .chart-empty[hidden] { display: none; }
@@ -128,6 +129,7 @@
                 <article class="sensor-card" style="--accent:#83ff75">
                     <div class="sensor-top"><h3>Humedad del suelo</h3><span class="sensor-state" id="soilState">Sin datos</span></div>
                     <div class="metric" id="soilValue">-- <small>%</small></div>
+                    <p class="metric-detail">Valor captado: <span id="soilRawValue">--</span></p>
                     <div class="chart-wrap"><canvas id="soilChart" aria-label="Histórico de humedad del suelo"></canvas></div>
                     <p class="sensor-note">Sensor YL-69 / FC-28</p>
                 </article>
@@ -154,7 +156,7 @@
                     <div class="metric" id="tankValue">-- <small>%</small></div>
                     <div class="chart-wrap" id="tankChartWrap" hidden><canvas id="tankChart" aria-label="Histórico del nivel del tanque"></canvas></div>
                     <div class="chart-empty" id="tankChartEmpty">Esperando una lectura real del nivel</div>
-                    <p class="sensor-note">Falta conectar/configurar el sensor; no se muestra un valor ficticio.</p>
+                    <p class="sensor-note">Sensor digital: 100% con agua detectada, 0% sin agua.</p>
                 </article>
             </div>
         </section>
@@ -169,7 +171,7 @@
                         <button class="action-button" id="manualButton" aria-pressed="false" onclick="setMode('MANUAL')">Manual</button>
                     </div>
                 </div>
-                <div class="control-row"><span class="control-label">Bomba (estado de API)</span><button class="action-button pump-button" id="pumpButton" onclick="toggleBomba()" disabled>Apagada</button></div>
+                <div class="control-row"><span class="control-label">Estado del relé ESP32</span><button class="action-button pump-button" id="pumpButton" onclick="toggleBomba()" disabled>Apagada</button></div>
                 <div class="status-line"><span class="dot" id="pumpDot"></span><span id="pumpStatus">Estado reportado por el servidor</span></div>
                 <div class="notice" id="apiNotice" role="status"></div>
             </section>
@@ -265,6 +267,10 @@
                 }
             }
 
+            const soilRaw = latest?.lecturaSueloRaw;
+            document.getElementById('soilRawValue').textContent =
+                typeof soilRaw === 'number' && Number.isFinite(soilRaw) ? String(soilRaw) : 'Sin datos';
+
             const hasTankReading = typeof latest?.nivelTanque === 'number' && Number.isFinite(latest.nivelTanque);
             document.getElementById('tankChartWrap').hidden = !hasTankReading;
             document.getElementById('tankChartEmpty').hidden = hasTankReading;
@@ -276,14 +282,19 @@
         function renderControls() {
             const automatic = estadoActual.modo === 'AUTOMATICO';
             const pumpButton = document.getElementById('pumpButton');
+            const relayIsOn = estadoActual.releEncendido ?? estadoActual.bombaEncendida;
             document.getElementById('modeBadge').textContent = automatic ? 'AUTOMÁTICO' : 'MANUAL';
             document.getElementById('autoButton').setAttribute('aria-pressed', String(automatic));
             document.getElementById('manualButton').setAttribute('aria-pressed', String(!automatic));
-            pumpButton.textContent = estadoActual.bombaEncendida ? 'Encendida' : 'Apagada';
-            pumpButton.classList.toggle('on', estadoActual.bombaEncendida);
+            pumpButton.textContent = automatic
+                ? (relayIsOn ? 'Encendida' : 'Apagada')
+                : (estadoActual.bombaEncendida ? 'Apagar bomba' : 'Encender bomba');
+            pumpButton.classList.toggle('on', relayIsOn);
             pumpButton.disabled = automatic;
-            document.getElementById('pumpDot').className = `dot${estadoActual.bombaEncendida ? ' online' : ''}`;
-            document.getElementById('pumpStatus').textContent = automatic ? 'Control automático reportado por el servidor' : 'Control manual habilitado en el servidor';
+            document.getElementById('pumpDot').className = `dot${relayIsOn ? ' online' : ''}`;
+            document.getElementById('pumpStatus').textContent = estadoActual.releEncendido == null
+                ? 'Esperando estado físico del ESP32'
+                : `Relé reportado ${relayIsOn ? 'encendido' : 'apagado'} por el ESP32`;
         }
 
         async function loadState() {
