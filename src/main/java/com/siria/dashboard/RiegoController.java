@@ -11,38 +11,34 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/riego")
+@CrossOrigin(origins = "*")
 public class RiegoController {
 
     @Autowired
     private LecturaSensorRepository repository;
 
-    private String modoOperacion = "AUTOMATICO"; // "AUTOMATICO" o "MANUAL"
+    private String modoOperacion = "AUTOMATICO";
     private boolean bombaEncendida = false;
-    private double umbralHumedadMinima = 40.0; // Umbral automatico (< 40% enciende)
+    private final double umbralHumedadMinima = 40.0;
+    private final double umbralHumedadOptima = 65.0;
 
     @GetMapping("/ping")
     public String ping() {
         return "Servidor SIRIA-W en linea";
     }
 
-    // Endpoint donde el ESP32 envia datos y recibe ordenes
     @PostMapping("/telemetria")
-    public Map<String, Object> recibirTelemetria(@RequestBody Map<String, Double> datos) {
-        Double hSuelo = datos.getOrDefault("humedadSuelo", 0.0);
-        Double temp = datos.getOrDefault("temperatura", 0.0);
-        Double hAmb = datos.getOrDefault("humedadAmbiente", 0.0);
-        Double nTanque = datos.getOrDefault("nivelTanque", 0.0);
-
-        // Guardar lectura en BD
-        LecturaSensor lectura = new LecturaSensor(hSuelo, temp, hAmb, nTanque);
+    public Map<String, Object> recibirTelemetria(@RequestBody LecturaSensor lectura) {
         repository.save(lectura);
 
-        // LÓGICA AUTOMÁTICA
         if ("AUTOMATICO".equalsIgnoreCase(modoOperacion)) {
-            if (hSuelo > 0 && hSuelo < umbralHumedadMinima) {
-                bombaEncendida = true; // Enciende si la tierra esta seca
-            } else if (hSuelo >= 65.0) {
-                bombaEncendida = false; // Apaga si ya recupero humedad suficiente
+            Double hSuelo = lectura.getHumedadSuelo();
+            if (hSuelo != null && hSuelo > 0) {
+                if (hSuelo < umbralHumedadMinima) {
+                    bombaEncendida = true;
+                } else if (hSuelo >= umbralHumedadOptima) {
+                    bombaEncendida = false;
+                }
             }
         }
 
@@ -53,12 +49,17 @@ public class RiegoController {
         return respuesta;
     }
 
-    @GetMapping("/historico")
-    public List<LecturaSensor> obtenerHistorico() {
-        return repository.findTop20ByOrderByIdDesc();
+    @GetMapping("/telemetria/ultima")
+    public LecturaSensor obtenerUltimaLectura() {
+        return repository.findFirstByOrderByIdDesc()
+                .orElse(new LecturaSensor(0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
-    // Obtener estado actual de los controles
+    @GetMapping("/historico")
+    public List<LecturaSensor> obtenerHistorico() {
+        return repository.findTop30ByOrderByIdDesc();
+    }
+
     @GetMapping("/estado")
     public Map<String, Object> obtenerEstado() {
         Map<String, Object> estado = new HashMap<>();
@@ -67,21 +68,21 @@ public class RiegoController {
         return estado;
     }
 
-    // Cambiar entre AUTOMATICO y MANUAL
     @PostMapping("/modo")
-    public Map<String, Object> cambiarModo(@RequestBody Map<String, String> payload) {
-        String nuevoModo = payload.get("modo");
+    public Map<String, Object> cambiarModo(@RequestBody Map<String, Object> payload) {
+        Object valorModo = payload.get("modo");
+        String nuevoModo = valorModo instanceof String ? (String) valorModo : "";
         if ("AUTOMATICO".equalsIgnoreCase(nuevoModo) || "MANUAL".equalsIgnoreCase(nuevoModo)) {
             this.modoOperacion = nuevoModo.toUpperCase();
         }
         return obtenerEstado();
     }
 
-    // Encender/Apagar Bomba manualmente
     @PostMapping("/bomba")
-    public Map<String, Object> cambiarBomba(@RequestBody Map<String, Boolean> payload) {
+    public Map<String, Object> cambiarBomba(@RequestBody Map<String, Object> payload) {
         if ("MANUAL".equalsIgnoreCase(modoOperacion)) {
-            Boolean encender = payload.get("encender");
+            Object valorEncender = payload.get("encender");
+            Boolean encender = valorEncender instanceof Boolean ? (Boolean) valorEncender : null;
             if (encender != null) {
                 this.bombaEncendida = encender;
             }
