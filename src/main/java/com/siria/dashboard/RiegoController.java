@@ -30,7 +30,6 @@ public class RiegoController {
     @PostMapping("/telemetria")
     public Map<String, Object> recibirTelemetria(@RequestBody LecturaSensor lectura) {
         repository.save(lectura);
-
         if ("AUTOMATICO".equalsIgnoreCase(modoOperacion)) {
             Double hSuelo = lectura.getHumedadSuelo();
             if (hSuelo != null && hSuelo > 0) {
@@ -41,7 +40,6 @@ public class RiegoController {
                 }
             }
         }
-
         Map<String, Object> respuesta = new HashMap<>();
         respuesta.put("status", "OK");
         respuesta.put("modo", modoOperacion);
@@ -70,21 +68,23 @@ public class RiegoController {
 
     @PostMapping("/modo")
     public Map<String, Object> cambiarModo(@RequestBody Map<String, Object> payload) {
-        Object valorModo = payload.get("modo");
-        String nuevoModo = valorModo instanceof String ? (String) valorModo : "";
-        if ("AUTOMATICO".equalsIgnoreCase(nuevoModo) || "MANUAL".equalsIgnoreCase(nuevoModo)) {
-            this.modoOperacion = nuevoModo.toUpperCase();
+        if (payload != null && payload.get("modo") != null) {
+            String nuevoModo = String.valueOf(payload.get("modo"));
+            if ("AUTOMATICO".equalsIgnoreCase(nuevoModo) || "MANUAL".equalsIgnoreCase(nuevoModo)) {
+                this.modoOperacion = nuevoModo.toUpperCase();
+            }
         }
         return obtenerEstado();
     }
 
     @PostMapping("/bomba")
     public Map<String, Object> cambiarBomba(@RequestBody Map<String, Object> payload) {
-        if ("MANUAL".equalsIgnoreCase(modoOperacion)) {
+        if ("MANUAL".equalsIgnoreCase(modoOperacion) && payload != null && payload.get("encender") != null) {
             Object valorEncender = payload.get("encender");
-            Boolean encender = valorEncender instanceof Boolean ? (Boolean) valorEncender : null;
-            if (encender != null) {
-                this.bombaEncendida = encender;
+            if (valorEncender instanceof Boolean) {
+                this.bombaEncendida = (Boolean) valorEncender;
+            } else {
+                this.bombaEncendida = Boolean.parseBoolean(String.valueOf(valorEncender));
             }
         }
         return obtenerEstado();
