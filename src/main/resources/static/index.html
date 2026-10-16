@@ -236,7 +236,7 @@
                             <button class="action-button" id="manualButton" aria-pressed="false" onclick="setMode('MANUAL')">Manual</button>
                         </div>
                     </div>
-                    <div class="control-row"><span class="control-label">Bomba (estado de API)</span><button class="action-button pump-button" id="pumpButton" onclick="toggleBomba()" disabled>Apagada</button></div>
+                    <div class="control-row"><span class="control-label">Relé ESP32</span><button class="action-button pump-button" id="pumpButton" onclick="toggleBomba()" disabled>Apagada</button></div>
                     <div class="status-line"><span class="dot" id="pumpDot"></span><span id="pumpStatus">Estado reportado por el servidor</span></div>
                     <div class="notice" id="apiNotice" role="status"></div>
                 </section>
@@ -332,7 +332,7 @@
             { key: 'nivelTanque', valueId: 'tankValue', stateId: 'tankState', chartId: 'tankChart', color: '#baff63', unit: '%', min: 0, max: 100 }
         ];
         const charts = new Map();
-        let estadoActual = { modo: 'AUTOMATICO', bombaEncendida: false };
+        let estadoActual = { modo: 'AUTOMATICO', bombaEncendida: false, releEncendido: null };
         let loading = false;
         const neonLinePlugin = {
             id: 'neonLine',
@@ -421,14 +421,19 @@
         function renderControls() {
             const automatic = estadoActual.modo === 'AUTOMATICO';
             const pumpButton = document.getElementById('pumpButton');
+            const releEncendido = estadoActual.releEncendido ?? estadoActual.bombaEncendida;
             document.getElementById('modeBadge').textContent = automatic ? 'AUTOMÁTICO' : 'MANUAL';
             document.getElementById('autoButton').setAttribute('aria-pressed', String(automatic));
             document.getElementById('manualButton').setAttribute('aria-pressed', String(!automatic));
-            pumpButton.textContent = estadoActual.bombaEncendida ? 'Encendida' : 'Apagada';
-            pumpButton.classList.toggle('on', estadoActual.bombaEncendida);
+            pumpButton.textContent = automatic
+                ? (releEncendido ? 'Encendida' : 'Apagada')
+                : (estadoActual.bombaEncendida ? 'Apagar bomba' : 'Encender bomba');
+            pumpButton.classList.toggle('on', releEncendido);
             pumpButton.disabled = automatic;
-            document.getElementById('pumpDot').className = `dot${estadoActual.bombaEncendida ? ' online' : ''}`;
-            document.getElementById('pumpStatus').textContent = automatic ? 'Control automático reportado por el servidor' : 'Control manual habilitado en el servidor';
+            document.getElementById('pumpDot').className = `dot${releEncendido ? ' online' : ''}`;
+            document.getElementById('pumpStatus').textContent = estadoActual.releEncendido == null
+                ? 'Esperando estado real del ESP32'
+                : `Relé reportado ${releEncendido ? 'encendido' : 'apagado'} por el ESP32`;
         }
         async function loadState() {
             estadoActual = await apiRequest('/api/riego/estado');
