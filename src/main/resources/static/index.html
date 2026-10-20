@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -126,6 +127,22 @@
         .vr-irrigation { position: absolute; top: 12px; right: 12px; z-index: 10; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: rgba(5, 9, 7, .88); color: var(--muted); font: 10px var(--mono); }
         .vr-irrigation.active { border-color: rgba(117, 217, 255, .6); color: #9de5ff; box-shadow: 0 0 18px rgba(80, 190, 255, .12); }
         .vr-mode-badge { position: absolute; top: 12px; left: 12px; z-index: 10; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: rgba(5, 9, 7, .88); color: var(--green); font: 11px var(--mono); }
+        .vr-fallback-fullscreen { position: fixed !important; inset: 0 !important; z-index: 1000; width: 100vw !important; height: 100dvh !important; max-height: none !important; border: 0 !important; border-radius: 0 !important; }
+        .phone-dialog { width: min(620px, calc(100% - 28px)); max-width: none; padding: 22px; border: 1px solid rgba(139, 255, 138, .3); border-radius: 8px; background: #09110c; color: var(--ink); box-shadow: 0 24px 90px rgba(0, 0, 0, .72); }
+        .phone-dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(5px); }
+        .phone-dialog-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .phone-dialog-head h2 { margin: 0; font-size: 18px; }
+        .phone-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+        .phone-dialog-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; align-items: center; }
+        .phone-qr { display: grid; width: 220px; min-height: 220px; place-items: center; padding: 10px; border-radius: 5px; background: #fff; }
+        .phone-qr svg { display: block; width: 100%; height: auto; }
+        .phone-qr img { width: 100%; height: auto; }
+        .phone-fields { display: grid; gap: 10px; }
+        .phone-fields label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+        .phone-fields select, .phone-fields input { width: 100%; min-height: 38px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 4px; background: #050907; color: var(--ink); font: 12px var(--mono); }
+        .phone-link { display: block; overflow-wrap: anywhere; color: var(--green); font: 11px var(--mono); }
+        .phone-status { min-height: 16px; margin: 0; color: var(--muted); font-size: 11px; }
+        .phone-note { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
         @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
@@ -143,6 +160,10 @@
             .vr-telemetry { right: 8px; bottom: 8px; width: calc(100% - 16px); grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .vr-irrigation { top: 8px; right: 8px; gap: 5px; padding: 5px 7px; font-size: 8px; }
             .vr-mode-badge { top: 43px; left: 8px; padding: 4px 7px; font-size: 9px; }
+            .phone-dialog { padding: 16px; }
+            .phone-dialog-body { grid-template-columns: 1fr; justify-items: center; gap: 16px; }
+            .phone-qr { width: min(220px, 62vw); min-height: auto; aspect-ratio: 1; }
+            .phone-fields { width: 100%; }
         }
     </style>
 </head>
@@ -174,6 +195,9 @@
             </button>
             <button class="action-button" id="tab-maqueta-btn" aria-pressed="false" onclick="switchTab('maqueta')">
                 Maqueta 3D (Gemelo Digital)
+            </button>
+            <button class="action-button" id="tab-blockchain-btn" aria-pressed="false" onclick="switchTab('blockchain')">
+                Auditoría Blockchain
             </button>
         </nav>
 
@@ -261,6 +285,7 @@
                     </div>
                     <div class="button-group">
                         <button class="action-button" id="btn-tour" onclick="toggleVirtualTour()">Recorrido 3D</button>
+                        <button class="action-button" id="btn-phone-qr" onclick="openPhoneAccess()">QR móvil</button>
                         <button class="action-button" id="btn-toggle-vr" style="border-color: var(--green); color: var(--green);" onclick="toggleVRMode()">Modo VR Cardboard</button>
                     </div>
                 </div>
@@ -292,34 +317,230 @@
         </div>
     </main>
 
+    <dialog class="phone-dialog" id="phone-access-dialog" aria-labelledby="phone-dialog-title">
+        <div class="phone-dialog-head">
+            <div>
+                <h2 id="phone-dialog-title">Presentar en celular</h2>
+                <p>Acceso directo al gemelo digital SIRIA-W</p>
+            </div>
+            <button class="action-button" type="button" onclick="closePhoneAccess()" aria-label="Cerrar diálogo">Cerrar</button>
+        </div>
+        <div class="phone-dialog-body">
+            <div class="phone-qr" id="phone-qr-code" aria-label="Código QR de acceso"><span class="phone-status">Generando QR…</span></div>
+            <div class="phone-fields">
+                <label for="phone-network">Interfaz de red
+                    <select id="phone-network"><option value="">Buscando redes locales…</option></select>
+                </label>
+                <label for="phone-host">Dirección del dashboard
+                    <input id="phone-host" type="text" inputmode="url" autocomplete="url" placeholder="192.168.1.20:8080">
+                </label>
+                <a class="phone-link" id="phone-access-link" target="_blank" rel="noopener noreferrer"></a>
+                <div class="button-group">
+                    <button class="action-button" type="button" onclick="refreshPhoneAccess()">Actualizar QR</button>
+                    <button class="action-button" type="button" onclick="copyPhoneAccess()">Copiar enlace</button>
+                </div>
+                <p class="phone-status" id="phone-access-status" role="status">Conecta el celular a la misma red Wi-Fi.</p>
+            </div>
+        </div>
+        <p class="phone-note">Para usar el giroscopio, permite el acceso al movimiento cuando el teléfono lo solicite. En iPhone, Cardboard puede requerir que el sitio use HTTPS.</p>
+    </dialog>
+
+    <div id="sec-blockchain" class="tab-view" style="display: none;">
+        <section class="panel" aria-labelledby="blockchainTitle">
+            <div class="section-heading" style="flex: 0 0 auto;">
+                <div>
+                    <h2 id="blockchainTitle">Auditoría Hídrica Inmutable (G7)</h2>
+                    <div class="sensor-note" style="margin: 2px 0 0 0;">Cadena de bloques con validación criptográfica del historial de riego.</div>
+                </div>
+            </div>
+
+            <div class="row" style="margin-top: 16px; gap: 16px; display: flex; flex-wrap: wrap; justify-content: center;">
+                <div id="blockchain-container" class="row" style="width: 100%; display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;"></div>
+            </div>
+
+            <div class="panel" style="margin-top: 24px; background: rgba(17, 29, 20, 0.9); border: 1px solid var(--line); border-radius: 16px; padding: 18px;">
+                <div class="section-heading" style="margin-bottom: 12px;">
+                    <h2>Simulador de Ataque</h2>
+                    <span class="section-kicker">Integridad blockchain</span>
+                </div>
+                <div class="control-row" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <span class="control-label">Volumen de agua a alterar en Bloque #2</span>
+                    <input id="tamper-litros" type="number" value="12.5" step="0.1" min="0" max="100" style="background: rgba(9, 15, 11, 0.8); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); padding: 10px 12px; width: 120px;">
+                </div>
+                <div class="button-group" style="margin-top: 18px;">
+                    <button class="action-button" type="button" onclick="simularAtaque()">Alterar datos del Bloque #2</button>
+                    <button class="action-button" type="button" onclick="restaurarCadena()">Restaurar cadena</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
     <!-- SCRIPT DE NAVEGACIÓN ENTRE PESTAÑAS Y RESIZE 3D -->
     <script>
         function switchTab(tab) {
             const secControl = document.getElementById('sec-control');
             const secMaqueta = document.getElementById('sec-maqueta');
+            const secBlockchain = document.getElementById('sec-blockchain');
             const btnControl = document.getElementById('tab-control-btn');
             const btnMaqueta = document.getElementById('tab-maqueta-btn');
+            const btnBlockchain = document.getElementById('tab-blockchain-btn');
+
+            const hideAll = () => {
+                secControl.style.display = 'none';
+                secMaqueta.style.display = 'none';
+                secBlockchain.style.display = 'none';
+                btnControl.setAttribute('aria-pressed', 'false');
+                btnMaqueta.setAttribute('aria-pressed', 'false');
+                btnBlockchain.setAttribute('aria-pressed', 'false');
+            };
 
             if (tab === 'maqueta') {
-                secControl.style.display = 'none';
+                hideAll();
                 secMaqueta.style.display = 'block';
-                btnControl.setAttribute('aria-pressed', 'false');
                 btnMaqueta.setAttribute('aria-pressed', 'true');
 
-                // Notificar al motor Three.js para redimensionar el viewport
                 setTimeout(() => {
                     window.dispatchEvent(new Event('resize'));
                     if (typeof window.onResizeVR === 'function') {
                         window.onResizeVR();
                     }
                 }, 50);
+            } else if (tab === 'blockchain') {
+                hideAll();
+                secBlockchain.style.display = 'block';
+                btnBlockchain.setAttribute('aria-pressed', 'true');
             } else {
+                hideAll();
                 secControl.style.display = 'block';
-                secMaqueta.style.display = 'none';
                 btnControl.setAttribute('aria-pressed', 'true');
-                btnMaqueta.setAttribute('aria-pressed', 'false');
+            }
+
+            const hash = tab === 'maqueta' ? '#maqueta' : tab === 'blockchain' ? '#blockchain' : '';
+            if (window.location.hash !== hash) {
+                window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
             }
         }
+
+        if (window.location.hash === '#maqueta') switchTab('maqueta');
+        else if (window.location.hash === '#blockchain') switchTab('blockchain');
+        else switchTab('control');
+    </script>
+
+    <script>
+        let phoneAddresses = [];
+
+        async function openPhoneAccess() {
+            const dialog = document.getElementById('phone-access-dialog');
+            if (!dialog.open) dialog.showModal();
+            await refreshPhoneAccess();
+        }
+
+        function closePhoneAccess() {
+            document.getElementById('phone-access-dialog').close();
+        }
+
+        function selectedPhoneAddress() {
+            const selected = document.getElementById('phone-network').value;
+            return phoneAddresses.find(address => address.url === selected);
+        }
+
+        function buildPhoneUrl() {
+            const host = document.getElementById('phone-host').value.trim();
+            const selected = selectedPhoneAddress();
+            let target;
+
+            if (!host) throw new Error('Selecciona una interfaz o escribe la IP LAN de esta computadora.');
+
+            if (selected && host === new URL(selected.url).host) {
+                target = new URL(selected.url);
+            } else {
+                const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(host);
+                const hostAndPort = host.includes(':') ? host : `${host}:${window.location.port}`;
+                const address = hasScheme
+                    ? host
+                    : `${window.location.protocol}//${hostAndPort}${window.location.pathname}`;
+                target = new URL(address);
+            }
+
+            if (!['http:', 'https:'].includes(target.protocol)) throw new Error('Usa una dirección HTTP o HTTPS.');
+            target.hash = 'maqueta';
+            return target.href;
+        }
+
+        function renderPhoneQr() {
+            const qrContainer = document.getElementById('phone-qr-code');
+            const status = document.getElementById('phone-access-status');
+            const link = document.getElementById('phone-access-link');
+            try {
+                if (typeof qrcode !== 'function') throw new Error('No se pudo cargar el generador QR. Revisa la conexión a Internet.');
+                const url = buildPhoneUrl();
+                const code = qrcode(0, 'M');
+                code.addData(url);
+                code.make();
+                qrContainer.innerHTML = code.createSvgTag(6, 2);
+                const svg = qrContainer.querySelector('svg');
+                svg.setAttribute('role', 'img');
+                svg.setAttribute('aria-label', 'Código QR para abrir la maqueta 3D');
+                link.href = url;
+                link.textContent = url;
+                status.textContent = 'Conecta el celular a la misma red Wi-Fi y escanea el código.';
+            } catch (error) {
+                qrContainer.textContent = 'QR no disponible';
+                link.removeAttribute('href');
+                link.textContent = '';
+                status.textContent = error.message;
+            }
+        }
+
+        async function refreshPhoneAccess() {
+            const select = document.getElementById('phone-network');
+            const input = document.getElementById('phone-host');
+            const status = document.getElementById('phone-access-status');
+            status.textContent = 'Buscando interfaces de red…';
+            try {
+                const response = await fetch('/api/riego/acceso', { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Error ${response.status} al buscar la red local.`);
+                phoneAddresses = await response.json();
+                select.replaceChildren();
+
+                if (phoneAddresses.length === 0) {
+                    select.add(new Option('Sin interfaces LAN detectadas', ''));
+                    input.value = '';
+                    input.placeholder = 'Dirección LAN, por ejemplo 192.168.1.20:8080';
+                    status.textContent = 'Escribe la IP de esta computadora en la red Wi-Fi.';
+                    return;
+                }
+
+                phoneAddresses.forEach(address => {
+                    select.add(new Option(`${address.nombre}: ${address.host}`, address.url));
+                });
+                select.selectedIndex = 0;
+                input.value = new URL(phoneAddresses[0].url).host;
+                renderPhoneQr();
+            } catch (error) {
+                phoneAddresses = [];
+                select.replaceChildren(new Option('Introduce la dirección manualmente', ''));
+                input.value = '';
+                input.placeholder = 'Dirección LAN, por ejemplo 192.168.1.20:8080';
+                status.textContent = error.message;
+            }
+        }
+
+        async function copyPhoneAccess() {
+            try {
+                await navigator.clipboard.writeText(buildPhoneUrl());
+                document.getElementById('phone-access-status').textContent = 'Enlace copiado.';
+            } catch (error) {
+                document.getElementById('phone-access-status').textContent = 'No se pudo copiar. Selecciona el enlace para copiarlo.';
+            }
+        }
+
+        document.getElementById('phone-network').addEventListener('change', () => {
+            const selected = selectedPhoneAddress();
+            if (selected) document.getElementById('phone-host').value = new URL(selected.url).host;
+            renderPhoneQr();
+        });
+        document.getElementById('phone-host').addEventListener('input', renderPhoneQr);
     </script>
 
     <!-- SCRIPT DE LÓGICA DE TELEMETRÍA Y CONTROL -->
@@ -595,5 +816,6 @@
 
     <!-- CARGA DEL MÓDULO VR 3D (G5) -->
     <script src="/js/vr_cardboard_siriaw.js"></script>
+    <script src="js/blockchain_g7.js"></script>
 </body>
 </html>

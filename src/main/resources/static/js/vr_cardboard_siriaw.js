@@ -650,23 +650,44 @@ function crearEtiquetasCAD3D() {
 // ----------------------------------------------------------------------------
 // BUCLE DE ANIMACIÓN Y RENDERIZADO
 // ----------------------------------------------------------------------------
-function toggleVRMode() {
+async function toggleVRMode() {
+    if (!isVRMode && typeof DeviceOrientationEvent !== "undefined"
+        && typeof DeviceOrientationEvent.requestPermission === "function") {
+        try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== "granted") {
+                const gyroStatus = document.getElementById('xr-gyro-status');
+                if (gyroStatus) gyroStatus.innerText = "Permiso denegado";
+                return;
+            }
+        } catch (error) {
+            const gyroStatus = document.getElementById('xr-gyro-status');
+            if (gyroStatus) gyroStatus.innerText = "No disponible";
+            return;
+        }
+    }
+
     isVRMode = !isVRMode;
     const modeText = document.getElementById('vr-mode-text');
+    const container = document.getElementById('vr-canvas-container');
 
     if (isVRMode) {
         if (modeText) {
             modeText.innerText = "CARDBOARD VR (MODO ESTEREOSCÓPICO)";
             modeText.style.color = "#00e5ff";
         }
-        const container = document.getElementById('vr-canvas-container');
-        if (container.requestFullscreen) container.requestFullscreen();
+        if (container.requestFullscreen) {
+            container.requestFullscreen().catch(() => container.classList.add('vr-fallback-fullscreen'));
+        } else {
+            container.classList.add('vr-fallback-fullscreen');
+        }
     } else {
         if (modeText) {
             modeText.innerText = "VISTA 3D ESTÁNDAR";
             modeText.style.color = "#00ff88";
         }
-        if (document.exitFullscreen) document.exitFullscreen();
+        container.classList.remove('vr-fallback-fullscreen');
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
     }
     onResizeVR();
 }
