@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 public class MqttTelemetrySubscriber {
 
     private static final Logger log = LoggerFactory.getLogger(MqttTelemetrySubscriber.class);
+    private static final String MESH_STATUS_TOPIC = "siria/mesh/estado/#";
 
     private final RiegoService riegoService;
     private final ObjectMapper objectMapper;
@@ -92,8 +93,10 @@ public class MqttTelemetrySubscriber {
                     options.setPassword(password.toCharArray());
                 }
                 client.connect(options);
-                client.subscribe(topic, qos);
-                log.info("Suscrito a MQTT: broker={}, topic={}, qos={}", brokerUrl, topic, qos);
+                client.subscribe(new String[]{topic, MESH_STATUS_TOPIC},
+                        new int[]{qos, qos});
+                log.info("Suscrito a MQTT: broker={}, topics={}, qos={}",
+                        brokerUrl, new String[]{topic, MESH_STATUS_TOPIC}, qos);
             }
         } catch (MqttException exception) {
             log.warn("No se pudo conectar a MQTT en {}: {}. Se reintentara.",
@@ -104,6 +107,11 @@ public class MqttTelemetrySubscriber {
     private void procesarMensaje(String receivedTopic, MqttMessage message) {
         try {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+            if (receivedTopic.startsWith("siria/mesh/estado/")) {
+                log.info("Estado mesh recibido en {}: {}", receivedTopic, payload);
+                return;
+            }
+
             LecturaSensor lectura = objectMapper.readValue(payload, LecturaSensor.class);
             riegoService.procesarTelemetria(lectura);
             log.debug("Telemetria MQTT guardada desde {}", receivedTopic);

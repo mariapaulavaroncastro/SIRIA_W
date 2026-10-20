@@ -11,6 +11,12 @@ public class LecturaSensor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "nodo_id")
+    private String nodoId;
+
+    @Column(name = "rol_nodo")
+    private String rolNodo;
+
     @Column(name = "humedad_suelo")
     private Double humedadSuelo;
 
@@ -64,6 +70,22 @@ public class LecturaSensor {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getNodoId() {
+        return nodoId;
+    }
+
+    public void setNodoId(String nodoId) {
+        this.nodoId = nodoId;
+    }
+
+    public String getRolNodo() {
+        return rolNodo;
+    }
+
+    public void setRolNodo(String rolNodo) {
+        this.rolNodo = rolNodo;
     }
 
     public Double getHumedadSuelo() {

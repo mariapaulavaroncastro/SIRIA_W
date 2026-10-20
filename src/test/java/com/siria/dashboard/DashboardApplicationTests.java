@@ -42,6 +42,8 @@ class DashboardApplicationTests {
 				.header("Content-Type", "application/json")
 				.POST(HttpRequest.BodyPublishers.ofString("""
 						{
+						  "nodoId": "nodo-02",
+						  "rolNodo": "SENSOR",
 						  "temperatura": 22.5,
 						  "humedadAmbiente": 54.0,
 						  "humedadSuelo": 20,
@@ -60,6 +62,8 @@ class DashboardApplicationTests {
 		assertTrue(response.body().contains("\"bombaEncendida\":true"));
 
 		LecturaSensor lectura = repository.findFirstByOrderByIdDesc().orElseThrow();
+		assertEquals("nodo-02", lectura.getNodoId());
+		assertEquals("SENSOR", lectura.getRolNodo());
 		assertEquals(20.0, lectura.getHumedadSuelo());
 		assertEquals(2800, lectura.getLecturaSueloRaw());
 		assertEquals(Boolean.TRUE, lectura.getReleEncendido());
