@@ -67,6 +67,20 @@ class DashboardApplicationTests {
 	}
 
 	@Test
+	void entregaDireccionesLanParaElAccesoQr() throws Exception {
+		HttpRequest request = HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:" + port + "/api/riego/acceso"))
+				.GET()
+				.build();
+		HttpResponse<String> response = HttpClient.newHttpClient()
+				.send(request, HttpResponse.BodyHandlers.ofString());
+
+		assertEquals(200, response.statusCode());
+		assertTrue(response.body().startsWith("["));
+		assertTrue(response.body().endsWith("]"));
+	}
+
+	@Test
 	void humedadCeroActivaLaOrdenAutomaticaAunqueElAdcSeaAlto() {
 		LecturaSensor lectura = new LecturaSensor(0.0, 22.0, 50.0, 0.0, 1000.0);
 		lectura.setLecturaSueloRaw(4095);

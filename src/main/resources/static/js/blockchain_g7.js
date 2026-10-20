@@ -26,7 +26,6 @@ async function renderizarBlockchain() {
 
   for (let i = 0; i < ledgerActual.length; i++) {
     const bloque = ledgerActual[i];
-    
     // Contenido del Bloque que se firma
     const payload = `${bloque.id}|${bloque.timestamp}|${bloque.humedad}|${bloque.litros}|${bloque.nodoId}|${previousHash}`;
     const currentHash = await generarSHA256(payload);
@@ -53,7 +52,6 @@ async function renderizarBlockchain() {
           <div class="small text-muted mb-1"><strong>Nodo SSI:</strong> ${bloque.nodoId}</div>
           <div class="small text-white mb-1"><strong>Humedad:</strong> ${bloque.humedad}%</div>
           <div class="small text-white mb-2"><strong>Volumen Riego:</strong> ${bloque.litros} L</div>
-          
           <div class="mt-auto">
             <div class="text-muted extra-small">Previous Hash:</div>
             <div class="hash-text text-secondary mb-2">${previousHash.substring(0, 20)}...</div>
