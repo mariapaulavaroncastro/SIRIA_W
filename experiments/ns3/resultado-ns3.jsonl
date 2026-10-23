@@ -1,0 +1,6 @@
+{"window":"ruta_primaria","duration_s":5.00,"tx_packets":15,"rx_packets":15,"lost_packets_estimate":0,"pdr_pct":100.00,"mean_delay_ms":3.06,"throughput_kbps":6.14}
+{"event":"primary_relay_disabled","time_s":5.10}
+{"event":"alternative_route_selected","time_s":7.10}
+{"window":"falla_y_cambio_de_ruta","duration_s":5.00,"tx_packets":25,"rx_packets":15,"lost_packets_estimate":10,"pdr_pct":60.00,"mean_delay_ms":2.08,"throughput_kbps":6.14}
+{"window":"ruta_alternativa","duration_s":10.00,"tx_packets":50,"rx_packets":50,"lost_packets_estimate":0,"pdr_pct":100.00,"mean_delay_ms":1.64,"throughput_kbps":10.24}
+{"summary":"application_delivery","tx_packets":90,"rx_packets":80,"pdr_pct":88.89}

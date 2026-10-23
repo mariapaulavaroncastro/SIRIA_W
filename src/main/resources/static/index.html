@@ -244,7 +244,7 @@
                         <div class="metric" id="tankValue">-- <small>%</small></div>
                         <div class="chart-wrap" id="tankChartWrap" hidden><canvas id="tankChart" aria-label="Histórico del nivel del tanque"></canvas></div>
                         <div class="chart-empty" id="tankChartEmpty">Esperando una lectura real del nivel</div>
-                        <p class="sensor-note">Falta conectar/configurar el sensor; no se muestra un valor ficticio.</p>
+                        <p class="sensor-note" id="tankNote">Sin lectura del tanque; los actuadores permanecen bloqueados.</p>
                     </article>
                 </div>
             </section>
@@ -262,6 +262,8 @@
                     </div>
                     <div class="control-row"><span class="control-label">Relé ESP32</span><button class="action-button pump-button" id="pumpButton" onclick="toggleBomba()" disabled>Apagada</button></div>
                     <div class="status-line"><span class="dot" id="pumpDot"></span><span id="pumpStatus">Estado reportado por el servidor</span></div>
+                    <div class="control-row"><span class="control-label">Electroválvula</span><button class="action-button" id="valveButton" onclick="toggleValvula()" disabled>Cerrada</button></div>
+                    <div class="status-line"><span class="dot" id="valveDot"></span><span id="valveStatus">Estado reportado por el servidor</span></div>
                     <div class="notice" id="apiNotice" role="status"></div>
                 </section>
                 <aside class="panel">
@@ -271,6 +273,14 @@
                     <div class="control-row"><span class="control-label">BMP280</span><span id="bmpStatus">Esperando datos</span></div>
                 </aside>
             </div>
+            <section class="panel" aria-labelledby="meshTitle">
+                <div class="section-heading">
+                    <h2 id="meshTitle">Red mesh y calidad del enlace (G4)</h2>
+                    <span class="section-kicker">ACK de aplicación</span>
+                </div>
+                <p>El PDR y el ETX son estimaciones de aplicación calculadas con heartbeats y ACK; no representan ETX de capa MAC. La prueba física disponible usa dos ESP32 y no demuestra multihop.</p>
+                <div id="meshStatusList" role="status">Esperando estado mesh del gateway</div>
+            </section>
         </div>
 
         <!-- ==================================================================== -->
@@ -553,7 +563,7 @@
             { key: 'nivelTanque', valueId: 'tankValue', stateId: 'tankState', chartId: 'tankChart', color: '#baff63', unit: '%', min: 0, max: 100 }
         ];
         const charts = new Map();
-        let estadoActual = { modo: 'AUTOMATICO', bombaEncendida: false, releEncendido: null };
+        let estadoActual = { modo: 'AUTOMATICO', bombaEncendida: false, releEncendido: null, valvulaAbierta: false, valvulaReportada: null, tanqueDisponible: false };
         let loading = false;
         const neonLinePlugin = {
             id: 'neonLine',
@@ -623,6 +633,9 @@
             document.getElementById('tankChartWrap').hidden = !hasTankReading;
             document.getElementById('tankChartEmpty').hidden = hasTankReading;
             document.getElementById('tankState').textContent = hasTankReading ? 'Recibido' : 'No medido';
+            document.getElementById('tankNote').textContent = !hasTankReading
+                ? 'Sin lectura del tanque; los actuadores permanecen bloqueados.'
+                : (latest.nivelTanque > 0 ? 'Tanque disponible.' : 'Tanque vacío; bomba y electroválvula bloqueadas.');
             document.getElementById('pressureNote').textContent = latest?.presionAtmosferica == null ? 'BMP280 ausente o lectura no disponible' : 'BMP280';
             document.getElementById('bmpStatus').textContent = latest?.presionAtmosferica == null ? 'No disponible' : 'Conectado';
             
@@ -643,6 +656,8 @@
             const automatic = estadoActual.modo === 'AUTOMATICO';
             const pumpButton = document.getElementById('pumpButton');
             const releEncendido = estadoActual.releEncendido ?? estadoActual.bombaEncendida;
+            const valveButton = document.getElementById('valveButton');
+            const valvulaReportada = estadoActual.valvulaReportada ?? estadoActual.valvulaAbierta;
             document.getElementById('modeBadge').textContent = automatic ? 'AUTOMÁTICO' : 'MANUAL';
             document.getElementById('autoButton').setAttribute('aria-pressed', String(automatic));
             document.getElementById('manualButton').setAttribute('aria-pressed', String(!automatic));
@@ -650,15 +665,45 @@
                 ? (releEncendido ? 'Encendida' : 'Apagada')
                 : (estadoActual.bombaEncendida ? 'Apagar bomba' : 'Encender bomba');
             pumpButton.classList.toggle('on', releEncendido);
-            pumpButton.disabled = automatic;
+            pumpButton.disabled = automatic || (!estadoActual.bombaEncendida && (!estadoActual.valvulaAbierta || !estadoActual.tanqueDisponible));
             document.getElementById('pumpDot').className = `dot${releEncendido ? ' online' : ''}`;
             document.getElementById('pumpStatus').textContent = estadoActual.releEncendido == null
                 ? 'Esperando estado real del ESP32'
                 : `Relé reportado ${releEncendido ? 'encendido' : 'apagado'} por el ESP32`;
+            valveButton.textContent = automatic
+                ? (valvulaReportada ? 'Abierta' : 'Cerrada')
+                : (estadoActual.valvulaAbierta ? 'Cerrar válvula' : 'Abrir válvula');
+            valveButton.classList.toggle('on', valvulaReportada);
+            valveButton.disabled = automatic || (!estadoActual.valvulaAbierta && !estadoActual.tanqueDisponible);
+            document.getElementById('valveDot').className = `dot${valvulaReportada ? ' online' : ''}`;
+            document.getElementById('valveStatus').textContent = estadoActual.valvulaReportada == null
+                ? 'Esperando estado real del ESP32'
+                : `Relé de válvula reportado ${valvulaReportada ? 'abierto' : 'cerrado'} por el ESP32`;
+            showNotice(estadoActual.errorControl || '');
         }
         async function loadState() {
             estadoActual = await apiRequest('/api/riego/estado');
             renderControls();
+        }
+        async function updateMeshStatus() {
+            const container = document.getElementById('meshStatusList');
+            try {
+                const nodes = await apiRequest('/api/riego/mesh/estado');
+                if (!Array.isArray(nodes) || nodes.length === 0) {
+                    container.textContent = 'Sin heartbeats mesh recientes';
+                    return;
+                }
+                container.replaceChildren(...nodes.map(node => {
+                    const row = document.createElement('div');
+                    const pdr = Number.isFinite(node.pdrPct) ? `${node.pdrPct.toFixed(1)}%` : '--';
+                    const etx = Number.isFinite(node.etxApp) ? node.etxApp.toFixed(2) : '--';
+                    const rtt = Number.isFinite(node.rttMs) ? `${node.rttMs} ms` : '--';
+                    row.textContent = `${node.nodoId} (${node.rolNodo}) · ${node.estado} · PDR ${pdr} · pérdidas ${node.perdidos ?? '--'} · ETX app ${etx} · RTT ${rtt} · reconexiones ${node.reconexiones ?? 0}`;
+                    return row;
+                }));
+            } catch (error) {
+                container.textContent = `No se pudo consultar la red mesh: ${error.message}`;
+            }
         }
         async function setMode(mode) {
             try {
@@ -672,8 +717,14 @@
             try {
                 estadoActual = await apiRequest('/api/riego/bomba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encender: !estadoActual.bombaEncendida }) });
                 renderControls();
-                showNotice('');
             } catch (error) { showNotice(`No se pudo cambiar la bomba: ${error.message}`); }
+        }
+        async function toggleValvula() {
+            if (estadoActual.modo !== 'MANUAL') return;
+            try {
+                estadoActual = await apiRequest('/api/riego/valvula', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ abrir: !estadoActual.valvulaAbierta }) });
+                renderControls();
+            } catch (error) { showNotice(`No se pudo cambiar la electroválvula: ${error.message}`); }
         }
         async function updateDashboard() {
             if (loading) return;
@@ -695,7 +746,9 @@
         updateClock();
         setInterval(updateClock, 1000);
         setInterval(updateDashboard, 3000);
+        setInterval(updateMeshStatus, 3000);
         updateDashboard();
+        updateMeshStatus();
     </script>
 
     <!-- SCRIPT DE CULTIVO ANIMADO HEADER -->

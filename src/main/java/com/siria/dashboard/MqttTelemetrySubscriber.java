@@ -2,6 +2,7 @@ package com.siria.dashboard;
 
 import com.siria.dashboard.model.LecturaSensor;
 import jakarta.annotation.PreDestroy;
+import tools.jackson.core.JacksonException;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -29,6 +30,7 @@ public class MqttTelemetrySubscriber {
     private static final String MESH_STATUS_TOPIC = "siria/mesh/estado/#";
 
     private final RiegoService riegoService;
+    private final MeshNodeStatusService meshNodeStatusService;
     private final ObjectMapper objectMapper;
 
     @Value("${siria.mqtt.broker-url:tcp://localhost:1883}")
@@ -51,8 +53,11 @@ public class MqttTelemetrySubscriber {
 
     private MqttClient client;
 
-    public MqttTelemetrySubscriber(RiegoService riegoService, ObjectMapper objectMapper) {
+    public MqttTelemetrySubscriber(RiegoService riegoService,
+                                   MeshNodeStatusService meshNodeStatusService,
+                                   ObjectMapper objectMapper) {
         this.riegoService = riegoService;
+        this.meshNodeStatusService = meshNodeStatusService;
         this.objectMapper = objectMapper;
     }
 
@@ -108,15 +113,16 @@ public class MqttTelemetrySubscriber {
         try {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
             if (receivedTopic.startsWith("siria/mesh/estado/")) {
-                log.info("Estado mesh recibido en {}: {}", receivedTopic, payload);
+                meshNodeStatusService.accept(payload);
+                log.info("Estado mesh recibido en {}", receivedTopic);
                 return;
             }
 
             LecturaSensor lectura = objectMapper.readValue(payload, LecturaSensor.class);
             riegoService.procesarTelemetria(lectura);
             log.debug("Telemetria MQTT guardada desde {}", receivedTopic);
-        } catch (Exception exception) {
-            log.error("No se pudo procesar telemetria MQTT de {}: {}",
+        } catch (JacksonException | IllegalArgumentException exception) {
+            log.error("No se pudo procesar mensaje MQTT de {}: {}",
                     receivedTopic, exception.getMessage());
         }
     }

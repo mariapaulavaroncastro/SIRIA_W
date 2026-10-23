@@ -28,6 +28,9 @@ public class RiegoController {
     @Autowired
     private RiegoService riegoService;
 
+    @Autowired
+    private MeshNodeStatusService meshNodeStatusService;
+
     @GetMapping("/ping")
     public String ping() {
         return "Servidor SIRIA-W en linea";
@@ -92,6 +95,11 @@ public class RiegoController {
         return riegoService.obtenerEstado();
     }
 
+    @GetMapping("/mesh/estado")
+    public List<Map<String, Object>> obtenerEstadoMesh() {
+        return meshNodeStatusService.getStatuses();
+    }
+
     @PostMapping("/modo")
     public Map<String, Object> cambiarModo(@RequestBody Map<String, Object> payload) {
         return riegoService.cambiarModo(payload);
@@ -100,5 +108,10 @@ public class RiegoController {
     @PostMapping("/bomba")
     public Map<String, Object> cambiarBomba(@RequestBody Map<String, Object> payload) {
         return riegoService.cambiarBomba(payload);
+    }
+
+    @PostMapping("/valvula")
+    public Map<String, Object> cambiarValvula(@RequestBody Map<String, Object> payload) {
+        return riegoService.cambiarValvula(payload);
     }
 }

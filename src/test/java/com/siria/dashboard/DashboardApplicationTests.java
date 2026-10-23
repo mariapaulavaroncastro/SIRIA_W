@@ -28,6 +28,9 @@ class DashboardApplicationTests {
 	@Autowired
 	private LecturaSensorRepository repository;
 
+	@Autowired
+	private MeshNodeStatusService meshNodeStatusService;
+
 	@Test
 	void contextLoads() {
 	}
@@ -50,6 +53,7 @@ class DashboardApplicationTests {
 						  "lecturaSueloRaw": 2800,
 						  "nivelTanque": 100.0,
 						  "releEncendido": true,
+						  "valvulaAbierta": true,
 						  "presionAtmosferica": 1013.2
 						}
 						"""))
@@ -67,6 +71,7 @@ class DashboardApplicationTests {
 		assertEquals(20.0, lectura.getHumedadSuelo());
 		assertEquals(2800, lectura.getLecturaSueloRaw());
 		assertEquals(Boolean.TRUE, lectura.getReleEncendido());
+		assertEquals(Boolean.TRUE, lectura.getValvulaAbierta());
 		assertEquals(1013.2, lectura.getPresionAtmosferica());
 	}
 
@@ -85,12 +90,60 @@ class DashboardApplicationTests {
 	}
 
 	@Test
+	void exponeMetricasMeshReportadasPorElNodo() throws Exception {
+		meshNodeStatusService.accept("""
+				{
+				  "nodoId": "nodo-02",
+				  "rolNodo": "SENSOR",
+				  "estado": "online",
+				  "secuencia": 12,
+				  "pdrPct": 91.7,
+				  "etxApp": 1.09,
+				  "rttMs": 24.0,
+				  "reconexiones": 2
+				}
+				""");
+
+		HttpRequest request = HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:" + port + "/api/riego/mesh/estado"))
+				.GET()
+				.build();
+		HttpResponse<String> response = HttpClient.newHttpClient()
+				.send(request, HttpResponse.BodyHandlers.ofString());
+
+		assertEquals(200, response.statusCode());
+		assertTrue(response.body().contains("\"nodoId\":\"nodo-02\""));
+		assertTrue(response.body().contains("\"pdrPct\":91.7"));
+		assertTrue(response.body().contains("\"etxApp\":1.09"));
+	}
+
+	@Test
 	void humedadCeroActivaLaOrdenAutomaticaAunqueElAdcSeaAlto() {
-		LecturaSensor lectura = new LecturaSensor(0.0, 22.0, 50.0, 0.0, 1000.0);
+		riegoService.cambiarModo(java.util.Map.of("modo", "AUTOMATICO"));
+		LecturaSensor lectura = new LecturaSensor(0.0, 22.0, 50.0, 100.0, 1000.0);
 		lectura.setLecturaSueloRaw(4095);
 
 		var estado = riegoService.procesarTelemetria(lectura);
 
 		assertTrue((Boolean) estado.get("bombaEncendida"));
+		assertTrue((Boolean) estado.get("valvulaAbierta"));
+	}
+
+	@Test
+	void bloqueaLaBombaHastaAbrirValvulaYConTanqueDisponible() {
+		riegoService.cambiarModo(java.util.Map.of("modo", "MANUAL"));
+		riegoService.procesarTelemetria(new LecturaSensor(60.0, 22.0, 50.0, 100.0, 1000.0));
+
+		var bombaBloqueada = riegoService.cambiarBomba(java.util.Map.of("encender", true));
+		assertEquals(Boolean.FALSE, bombaBloqueada.get("bombaEncendida"));
+		assertTrue(String.valueOf(bombaBloqueada.get("errorControl")).contains("electroválvula"));
+
+		riegoService.cambiarValvula(java.util.Map.of("abrir", true));
+		var bombaEncendida = riegoService.cambiarBomba(java.util.Map.of("encender", true));
+		assertEquals(Boolean.TRUE, bombaEncendida.get("bombaEncendida"));
+
+		var tanqueVacio = riegoService.procesarTelemetria(new LecturaSensor(60.0, 22.0, 50.0, 0.0, 1000.0));
+		assertEquals(Boolean.FALSE, tanqueVacio.get("bombaEncendida"));
+		assertEquals(Boolean.FALSE, tanqueVacio.get("valvulaAbierta"));
 	}
 }

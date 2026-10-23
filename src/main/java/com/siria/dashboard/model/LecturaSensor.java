@@ -26,6 +26,9 @@ public class LecturaSensor {
     @Column(name = "rele_encendido")
     private Boolean releEncendido;
 
+    @Column(name = "valvula_abierta")
+    private Boolean valvulaAbierta;
+
     @Column(name = "temperatura")
     private Double temperatura;
 
@@ -110,6 +113,14 @@ public class LecturaSensor {
 
     public void setReleEncendido(Boolean releEncendido) {
         this.releEncendido = releEncendido;
+    }
+
+    public Boolean getValvulaAbierta() {
+        return valvulaAbierta;
+    }
+
+    public void setValvulaAbierta(Boolean valvulaAbierta) {
+        this.valvulaAbierta = valvulaAbierta;
     }
 
     public Double getTemperatura() {
