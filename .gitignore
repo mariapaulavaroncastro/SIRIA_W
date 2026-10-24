@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local HTTPS development certificate and private key
+/.local-https/
+/src/main/resources/static/siriaw-local-ca.cer
+/src/main/resources/static/ns3-metrics.json
+/src/main/resources/static/ns3-metrics.json.tmp
+/ns3/siriaw-mesh
